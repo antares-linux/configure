@@ -11,17 +11,17 @@ alias printf="printf --"
 # initialize these with defaults
 : "${sysroot:=}"
 : "${prefix:=/usr/local}"
-: "${exec_prefix:=$prefix}"
+: "${exec_prefix:=\${prefix\}}"
 : "${bindir:=$exec_prefix/bin}"
 : "${sbindir:=$exec_prefix/sbin}"
 : "${libdir:=$exec_prefix/lib}"
 : "${libexecdir:=$exec_prefix/libexec}"
 : "${sysconfdir:=$sysroot/etc}"
 : "${localstatedir:=$sysroot/var}"
-: "${includedir:=$prefix/include}"
-: "${datadir:=$prefix/share}"
-: "${infodir:=$datadir/info}"
-: "${mandir:=$datadir/man}"
+: "${includedir:=\${prefix\}/include}"
+: "${datadir:=\${prefix\}/share}"
+: "${infodir:=\${datadir\}/info}"
+: "${mandir:=\${datadir\}/man}"
 
 # print help message
 print_usage() {
@@ -118,3 +118,6 @@ Report bugs to the package provider.\n"
     # exit no error
     exit 0
 }
+
+
+# beginning of script

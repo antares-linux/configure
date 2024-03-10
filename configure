@@ -1,0 +1,120 @@
+#!/bin/sh
+
+# project-specific variables to be set:
+# - optional_features_section: project-specific config features
+# - optional_packages_section: project-specific config packages
+# - optional_variables_section: project-specific config environment variables
+
+# prevent printf from interpreting dashes as options
+alias printf="printf --"
+
+# initialize these with defaults
+: "${sysroot:=}"
+: "${prefix:=/usr/local}"
+: "${exec_prefix:=$prefix}"
+: "${bindir:=$exec_prefix/bin}"
+: "${sbindir:=$exec_prefix/sbin}"
+: "${libdir:=$exec_prefix/lib}"
+: "${libexecdir:=$exec_prefix/libexec}"
+: "${sysconfdir:=$sysroot/etc}"
+: "${localstatedir:=$sysroot/var}"
+: "${includedir:=$prefix/include}"
+: "${datadir:=$prefix/share}"
+: "${infodir:=$datadir/info}"
+: "${mandir:=$datadir/man}"
+
+# print help message
+print_usage() {
+    # main
+    printf "Usage: $0 [OPTION]... [VAR=VALUE]...
+
+To assign environment variables (e.g., CC, CFLAGS...), specify them as
+VAR=VALUE. See below for descriptions of some of the useful variables.
+
+Defaults for the options are specified in brackets.
+
+Configuration:
+  -h, --help              display this help and exit
+  -V, --version           display version information and exit
+  -q, --quiet, --silent   do not print \`checking ...' messages
+  -n, --no-create         do not create output files
+      --srcdir=DIR        source directory [detected]
+      --sysroot=SYSROOT   use SYSROOT as the system root during the build
+
+Installation directories:
+  --prefix=PREFIX         main installation prefix [$prefix]
+  --exec-prefix=EPREFIX   installation prefix for executable files [PREFIX]
+
+By default, \`make install' will install all the files in
+\`$bindir', \`$libdir' etc. You can specify
+an installation prefix other than \`$prefix' using \`--prefix',
+for instance \`--prefix=\$HOME/.local'.
+
+For better control, use the options below.
+
+Fine tuning of the installation directories:
+  --bindir=DIR            user executables [EPREFIX/bin]
+  --sbindir=DIR           system admin executables [EPREFIX/sbin]
+  --libexecdir=DIR        program executables [EPREFIX/libexec]
+  --sysconfdir=DIR        read-only single-machine data [SYSROOT/etc]
+  --localstatedir=DIR     modifiable single-machine data [SYSROOT/var]
+  --libdir=DIR            object code libraries [EPREFIX/lib]
+  --includedir=DIR        C header files [PREFIX/include]
+  --datadir=DIR           read-only architecture-independent data [PREFIX/share]
+  --infodir=DIR           info documentation [DATADIR/info]
+  --mandir=DIR            man documentation [DATADIR/man]
+
+System types:
+  --build=BUILD           configure for building on BUILD [guessed]
+  --target=TARGET         cross-compile programs to run on TARGET [BUILD]
+  --host=HOST             same as --target
+
+Optional features:
+  --enable-FEATURE[=ARG]  include FEATURE [ARG=yes]
+  --disable-FEATURE       do not include FEATURE (same as --enable-FEATURE=no)
+  --enable-static         build static binaries [disabled]
+  --enable-shared         build dynamic-linked binaries [enabled]
+  --enable-static-libs    build static libraries [enabled]
+  --enable-shared-libs    build shared libraries [enabled]
+$optional_features_section
+
+Optional packages:
+  --with-PACKAGE[=ARG]    use PACKAGE [ARG=yes]
+  --without-PACKAGE       do not use PACKAGE (same as --with-PACKAGE=no)
+  --with-pkgversion=STR   use STR as the package version string
+$optional_packages_section
+
+Some influential environment variables:
+  CC          C compiler command
+  CFLAGS      C compiler flags
+  LDFLAGS     linker flags, e.g. -L<lib dir> if you have libraries in a
+              nonstandard directory <lib dir>
+  LIBS        libraries to pass to the linker, e.g. -l<library>
+  CPPFLAGS    (Objective) C/C++ preprocessor flags, e.g. -I<include dir> if
+              you have headers in a nonstandard directory <include dir>
+  CXX         C++ compiler command
+  CXXFLAGS    C++ compiler flags
+  AR          archiver command
+  AS          assembler command
+  DSYMUTIL    dsymutil command
+  LD          linker command
+  NM          nm command
+  RANLIB      ranlib command
+  STRIP       strip command
+  OBJCOPY     objcopy command
+  OBJDUMP     objdump command
+  READELF     readelf command
+  CROSS_COMPILE
+              cross compiler target prefix with trailing dash; for example,
+              \`x86_64-pc-linux-gnu-' or \`armv7l-linux-musleabihf-'
+  DESTDIR     destination for install (post-build counterpart to \`sysroot')
+$optional_variables_section
+
+Use these variables to override the choices made by \`configure' or to help
+it to find libraries and programs with nonstandard names/locations.
+
+Report bugs to the package provider.\n"
+
+    # exit no error
+    exit 0
+}

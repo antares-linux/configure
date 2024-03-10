@@ -1,16 +1,25 @@
 #!/bin/sh
 
 # project-specific variables to be set:
-# - optional_variables: environment variables
-# - optional_features: features
-# - optional_packages: packages
-# - optional_variables_section: info for environment variables
-# - optional_features_section: info for features
-# - optional_packages_section: info for packages
+# - optional_variables
+# - optional_features
+# - optional_packages
+# - optional_variables_section
+# - optional_features_section
+# - optional_packages_section
+# - package_name
+# - package_string
+# - package_version
 
 
 # prevent printf from interpreting dashes as options
 alias printf="printf --"
+
+# print version message
+print_version() {
+    printf "${package_name:-\$package_name} (${package_string:-\$package_string}) ${package_version:-\$package_version}\n"
+    exit 0
+}
 
 # print help message
 print_help() {
@@ -30,6 +39,7 @@ Configuration:
       --builddir=DIR      configure for building in DIR [\$PWD]
       --srcdir=DIR        access sources in DIR [detected]
       --sysroot=SYSROOT   use SYSROOT as the system root during the build
+      --cfgfile=FILE      write the generated configuration to FILE [config.mk]
 
 Installation directories:
   --prefix=PREFIX         main installation prefix [/usr/local]
@@ -45,27 +55,24 @@ For better control, use the options below.
 Fine tuning of the installation directories:
   --bindir=DIR            user executables [EPREFIX/bin]
   --sbindir=DIR           system admin executables [EPREFIX/sbin]
+  --libdir=DIR            object code libraries [EPREFIX/lib]
   --libexecdir=DIR        program executables [EPREFIX/libexec]
   --sysconfdir=DIR        read-only single-machine data [SYSROOT/etc]
   --localstatedir=DIR     modifiable single-machine data [SYSROOT/var]
-  --libdir=DIR            object code libraries [EPREFIX/lib]
   --includedir=DIR        C header files [PREFIX/include]
   --datadir=DIR           read-only architecture-independent data [PREFIX/share]
   --infodir=DIR           info documentation [DATADIR/info]
   --mandir=DIR            man documentation [DATADIR/man]
 
 System types:
-  --build=BUILD           configure for building on BUILD [guessed]
+  --build=BUILD           configure for building on BUILD [default; none]
   --target=TARGET         cross-compile programs to run on TARGET [BUILD]
   --host=HOST             same as --target
 
 Optional features:
   --enable-FEATURE[=ARG]  include FEATURE [ARG=yes]
   --disable-FEATURE       do not include FEATURE (same as --enable-FEATURE=no)
-  --enable-static         build static binaries [disabled]
-  --enable-shared         build dynamic-linked binaries [enabled]
-  --enable-static-libs    build static libraries [enabled]
-  --enable-shared-libs    build shared libraries [enabled]
+  --enable-static-bin     build static binaries [disabled]
 $optional_features_section
 
 Optional packages:
@@ -132,20 +139,77 @@ println() {
     printf "%s\n" "$*"
 }
 
+# exit with failure
+printerr() {
+    printf "$0: error: %s\n" "$*" >&2
+    exit 1
+}
+
 
 # beginning of script
 # ------------------------------------------------------------------------------
 
 # parse an argument
-for i in "$@"; do
+while [ "$#" -gt 0 ]; do
     # k/v pair
-    opt="${i%%=*}"
-    val="${i##${opt}=}"
+    opt="${1%%=*}"
+    val="${1##${opt}=}"
 
+#  --with-pkgversion=STR   use STR as the package version string
     # check against default opts
-    case "$i" in
-        --help) print_help ;;
+    case "$1" in
+        -o)
+            config_file="$2"; shift ;;
+        --help)
+            print_help ;;
+        --version)
+            print_version ;;
+        --quiet|--silent|-q)
+            silent="yes" ;;
+        --no-create|-n)
+            write_config="no" ;;
+        --cfgfile=*)
+            config_file="${1##--cfgfile=}" ;;
+        --sysroot=*)
+            sysroot="${1##--sysroot=}" ;;
+        --prefix=*)
+            prefix="${1##--prefix=}" ;;
+        --exec-prefix=*)
+            exec_prefix="${1##--exec-prefix=}" ;;
+        --builddir=*)
+            builddir="${1##--builddir=}" ;;
+        --srcdir=*)
+            srcdir="${1##--srcdir=}" ;;
+        --bindir=*)
+            bindir="${1##--bindir=}" ;;
+        --sbindir=*)
+            sbindir="${1##--sbindir=}" ;;
+        --libdir=*)
+            libdir="${1##--libdir=}" ;;
+        --libexecdir=*)
+            libexecdir="${1##--libexecdir=}" ;;
+        --sysconfdir=*)
+            sysconfdir="${1##--sysconfdir=}" ;;
+        --localstatedir=*)
+            localstatedir="${1##--localstatedir=}" ;;
+        --includedir=*)
+            includedir="${1##--includedir=}" ;;
+        --datadir=*)
+            datadir="${1##--datadir=}" ;;
+        --infodir=*)
+            infodir="${1##--infodir=}" ;;
+        --mandir=*)
+            mandir="${1##--mandir=}" ;;
+        --build=*)
+            build="${1##--build=}" ;;
+        --target=*)
+            target="${1##--target=}" ;;
+        --host=*)
+            target="${1##--host=}" ;;
+        --enable-static-bin)
+            static_bin="yes" ;;
     esac
+    shift
 done
 
 # set variables: these should be compatible with both `sh` and `make`
@@ -164,3 +228,4 @@ done
 : "${mandir:=\${datadir\}/man}"
 : "${builddir:=$PWD}"
 : "${srcdir:=\${builddir\}/${0%/${0##*/}}}"
+: "${static_bin:=no}"

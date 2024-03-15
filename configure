@@ -1,25 +1,7 @@
 #!/bin/sh
 
-# project-specific variables to be set:
-# - optional_variables
-# - optional_features
-# - optional_packages
-# - optional_variables_section
-# - optional_features_section
-# - optional_packages_section
-# - package_name
-# - package_string
-# - package_version
-
-
 # prevent printf from interpreting dashes as options
 alias printf="printf --"
-
-# print version message
-print_version() {
-    printf "${package_name:-\$package_name} (${package_string:-\$package_string}) ${package_version:-\$package_version}\n"
-    exit 0
-}
 
 # print help message
 print_help() {
@@ -33,7 +15,6 @@ Defaults for the options are specified in brackets.
 
 Configuration:
   -h, --help              display this help and exit
-  -V, --version           display version information and exit
   -q, --quiet, --silent   do not print \`checking ...' messages
   -n, --no-create         do not create output files
       --builddir=DIR      configure for building in DIR [\$PWD]
@@ -73,13 +54,11 @@ Optional features:
   --enable-FEATURE[=ARG]  include FEATURE [ARG=yes]
   --disable-FEATURE       do not include FEATURE (same as --enable-FEATURE=no)
   --enable-static-bin     build static binaries [disabled]
-$optional_features_section
 
 Optional packages:
   --with-PACKAGE[=ARG]    use PACKAGE [ARG=yes]
   --without-PACKAGE       do not use PACKAGE (same as --with-PACKAGE=no)
   --with-pkgversion=STR   use STR as the package version string
-$optional_packages_section
 
 Some influential environment variables:
   CC          C compiler command
@@ -105,49 +84,26 @@ Some influential environment variables:
               cross compiler target prefix with trailing dash; for example,
               \`x86_64-pc-linux-gnu-' or \`armv7l-linux-musleabihf-'
   DESTDIR     destination for install (post-build counterpart to \`sysroot')
-$optional_variables_section
 
 Use these variables to override the choices made by \`configure' or to help
 it to find libraries and programs with nonstandard names/locations.
 
-Report bugs to the package provider.\n"
+Report bugs to the package provider.\n" >&2
 
     # exit no error
     exit 0
 }
 
-# swap a variable
-var_swap() {
-    eval "test -n \"\$_${1}_defined_\"" && {
-        eval "_${1}_defined_="
-        eval "$1=\"\$_$1\""
-        eval "_$1="
-    } || {
-        eval "_${1}_defined_=y"
-        eval "_$1=\"\$$1\""
-        eval "$1=\"$2\""
-    }
-}
-
-# expand a variable
-get_var() {
-    eval "printf \"$1\""
-}
-
-# I will never use echo...
-println() {
-    printf "%s\n" "$*"
-}
-
-# exit with failure
-printerr() {
-    printf "$0: error: %s\n" "$*" >&2
-    exit 1
-}
+# printing
+println() { printf "%s\n" "$*"; }
+error() { printf "$0: error: %s\n" "$*" >&2; exit 1; }
 
 
 # beginning of script
 # ------------------------------------------------------------------------------
+
+# if no path is provided, assume ./
+[ "$0" = "${0%%/*}" ] && P0="./$0"; : ${P0:=$0}
 
 # parse an argument
 while [ "$#" -gt 0 ]; do
@@ -162,14 +118,12 @@ while [ "$#" -gt 0 ]; do
             config_file="$2"; shift ;;
         --help)
             print_help ;;
-        --version)
-            print_version ;;
         --quiet|--silent|-q)
             silent="yes" ;;
         --no-create|-n)
             write_config="no" ;;
         --cfgfile=*)
-            config_file="${1##--cfgfile=}" ;;
+            config="${1##--cfgfile=}" ;;
         --sysroot=*)
             sysroot="${1##--sysroot=}" ;;
         --prefix=*)
@@ -208,6 +162,10 @@ while [ "$#" -gt 0 ]; do
             target="${1##--host=}" ;;
         --enable-static-bin)
             static_bin="yes" ;;
+        -*=*|-*)
+            printf "warning: unknown option ${1%%=*}\n" >&2 ;;
+        *=*)
+            eval "$opt='$val'" ;;
     esac
     shift
 done
@@ -220,12 +178,19 @@ done
 : "${sbindir:=$exec_prefix/sbin}"
 : "${libdir:=$exec_prefix/lib}"
 : "${libexecdir:=$exec_prefix/libexec}"
-: "${sysconfdir:=$sysroot/etc}"
-: "${localstatedir:=$sysroot/var}"
+: "${sysconfdir:=\${sysroot\}/etc}"
+: "${localstatedir:=\${sysroot\}/var}"
 : "${includedir:=\${prefix\}/include}"
 : "${datadir:=\${prefix\}/share}"
 : "${infodir:=\${datadir\}/info}"
 : "${mandir:=\${datadir\}/man}"
 : "${builddir:=$PWD}"
-: "${srcdir:=\${builddir\}/${0%/${0##*/}}}"
+: "${srcdir:=\${builddir\}/${P0%/*}}"
 : "${static_bin:=no}"
+# SHELL = /bin/sh
+
+# write to config.mk instead of Makefile
+[ "$(eval "realpath \"$srcdir\"")" = "$builddir" ] && : "${config:=$builddir/config.mk}"
+
+# create makefile
+: "${config:=$builddir/Makefile}" > "$config"

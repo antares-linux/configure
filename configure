@@ -45,11 +45,6 @@ Fine tuning of the installation directories:
   --infodir=DIR           info documentation [DATADIR/info]
   --mandir=DIR            man documentation [DATADIR/man]
 
-System types:
-  --build=BUILD           configure for building on BUILD [default; none]
-  --target=TARGET         cross-compile programs to run on TARGET [BUILD]
-  --host=HOST             same as --target
-
 Optional features:
   --enable-FEATURE[=ARG]  include FEATURE [ARG=yes]
   --disable-FEATURE       do not include FEATURE (same as --enable-FEATURE=no)
@@ -59,6 +54,11 @@ Optional packages:
   --with-PACKAGE[=ARG]    use PACKAGE [ARG=yes]
   --without-PACKAGE       do not use PACKAGE (same as --with-PACKAGE=no)
   --with-pkgversion=STR   use STR as the package version string
+
+System types:
+  --build=BUILD           configure for building on BUILD [none]
+  --target=TARGET         cross-compile programs to run on TARGET [BUILD]
+  --host=HOST             same as --target
 
 Some influential environment variables:
   CC          C compiler command
@@ -95,8 +95,38 @@ Report bugs to the package provider.\n" >&2
 }
 
 # printing
-println() { printf "%s\n" "$*"; }
-error() { printf "$0: error: %s\n" "$*" >&2; exit 1; }
+println() { printf "%s\n" "$*" >&2; }
+error() { printf "$0: error: %s\n" "$*" >&2; exit ${2:-1}; }
+
+# try compiler names
+try_cmd() { eval "test -z \"\$$1\"" && command -v "$2" >/dev/null 2>&1 && eval "$1=\"$2\""; }
+
+# check a preprocessor condition
+try_cpp_condition() {
+    printf "checking preprocessor condition %s... " "$1"
+    printf "typedef int x;\n#if $1\n#error yes\n#endif\n" > "$tmpc"
+    shift
+    "$CC" "$@" -c -o /dev/null "$tmpc" >/dev/null 2>&1 && printf "false\n" && return 1
+    printf "true\n"
+    return 0
+}
+
+# try headers
+# todo: use CPPFLAGS, cpp, resolve paths only
+try_header() {
+    printf "checking for %s... " "$1"
+    printf "#include <$1>\n" > "$tmpc"
+    "$CC" -E $CPPFLAGS $CPPFLAGS_TRY -c -o /dev/null "$tmpc" >/dev/null 2>&1 && printf "yes\n" && return 0
+    printf "no\n"
+    return 1
+}
+
+# format a variable string for make
+fmt_var() {
+    eval "printf \"$1 =\${$1:+ \$$1}\""
+    #eval "test -n \"\$$1\"" && eval "printf \"$1 = \$$1\"" && return
+    #eval "printf \"#$1 =\""
+}
 
 
 # beginning of script
@@ -110,12 +140,11 @@ while [ "$#" -gt 0 ]; do
     # k/v pair
     opt="${1%%=*}"
     val="${1##${opt}=}"
-
-#  --with-pkgversion=STR   use STR as the package version string
-    # check against default opts
     case "$1" in
         -o)
-            config_file="$2"; shift ;;
+            config_file="$2"; shift 2 ;;
+        -o*)
+            config_file="${1##-o}"; shift ;;
         --help)
             print_help ;;
         --quiet|--silent|-q)
@@ -173,24 +202,95 @@ done
 # set variables: these should be compatible with both `sh` and `make`
 : "${sysroot:=}"
 : "${prefix:=/usr/local}"
-: "${exec_prefix:=\${prefix\}}"
+: "${exec_prefix:=\$(prefix)}"
 : "${bindir:=$exec_prefix/bin}"
 : "${sbindir:=$exec_prefix/sbin}"
 : "${libdir:=$exec_prefix/lib}"
 : "${libexecdir:=$exec_prefix/libexec}"
-: "${sysconfdir:=\${sysroot\}/etc}"
-: "${localstatedir:=\${sysroot\}/var}"
-: "${includedir:=\${prefix\}/include}"
-: "${datadir:=\${prefix\}/share}"
-: "${infodir:=\${datadir\}/info}"
-: "${mandir:=\${datadir\}/man}"
+: "${sysconfdir:=\$(sysroot)/etc}"
+: "${localstatedir:=\$(sysroot)/var}"
+: "${includedir:=\$(prefix)/include}"
+: "${datadir:=\$(prefix)/share}"
+: "${infodir:=\$(datadir)/info}"
+: "${mandir:=\$(datadir)/man}"
 : "${builddir:=$PWD}"
-: "${srcdir:=\${builddir\}/${P0%/*}}"
+: "${srcdir:=$(cd "${P0%/*}";printf "$PWD";cd - >/dev/null)}"
+: "${config:=$builddir/config.mk}" > "$config"
 : "${static_bin:=no}"
-# SHELL = /bin/sh
+: "${target:=${CROSS_COMPILE%-}}"
+: "${CROSS_COMPILE:=${target:+${target}-}}"
 
-# write to config.mk instead of Makefile
-[ "$(eval "realpath \"$srcdir\"")" = "$builddir" ] && : "${config:=$builddir/config.mk}"
+# used for various tests
+tmpc="./conf$$-$PPID-$i.c"
 
-# create makefile
-: "${config:=$builddir/Makefile}" > "$config"
+# remove tmpc on exit
+trap 'rm -f "$tmpc"' EXIT INT QUIT TERM HUP KILL
+
+# find a C compiler
+printf "checking for C compiler... "
+try_cmd CC "${CROSS_COMPILE}gcc"
+try_cmd CC "${CROSS_COMPILE}c99"
+try_cmd CC "${CROSS_COMPILE}cc"
+try_cmd CC "${CROSS_COMPILE}tcc"
+try_cmd CC "${CROSS_COMPILE}qcc"
+try_cmd CC "${CROSS_COMPILE}pcc"
+printf "%s\n" "${CC:-not found}"
+test -n "$CC" || error "cannot find a C compiler"
+
+# find a linker
+printf "checking for linker... "
+try_cmd LD "${CROSS_COMPILE}ld"
+try_cmd LD "${CROSS_COMPILE}ld.bfd"
+try_cmd LD "${CROSS_COMPILE}ld.gold"
+try_cmd LD "${CROSS_COMPILE}gold"
+try_cmd LD "${CROSS_COMPILE}lld"
+try_cmd LD "${CROSS_COMPILE}mold"
+printf "%s\n" "${LD:-not found}"
+test -n "$LD" || printf "warning: no linker found\n" # not always needed
+
+# find an archiver
+printf "checking for archiver... "
+try_cmd AR "${CROSS_COMPILE}ar"
+try_cmd AR "${CROSS_COMPILE}llvm-ar"
+try_cmd AR "${CROSS_COMPILE}gcc-ar"
+printf "%s\n" "${AR:-not found}"
+test -n "$AR" || printf "warning: no archiver found\n" # not always needed
+
+# check if it works
+printf "checking whether C compiler works... "
+printf "typedef int x;" > "$tmpc"
+cc_output="$("$CC" $CPPFLAGS $CFLAGS -c -o /dev/null "$tmpc" 2>&1)" || {
+    printf "no; compiler output follows:\n%s\n" "$output"
+    exit 1
+}
+printf "yes\n"
+
+
+# write to the config file
+printf "\
+$(fmt_var sysroot)
+$(fmt_var prefix)
+$(fmt_var exec_prefix)
+$(fmt_var bindir)
+$(fmt_var sbindir)
+$(fmt_var libdir)
+$(fmt_var libexecdir)
+$(fmt_var sysconfdir)
+$(fmt_var localstatedir)
+$(fmt_var includedir)
+$(fmt_var datadir)
+$(fmt_var infodir)
+$(fmt_var mandir)
+$(fmt_var builddir)
+$(fmt_var srcdir)
+
+$(fmt_var build)
+$(fmt_var target)
+$(fmt_var static_bin)
+$(fmt_var CC)
+$(fmt_var LD)
+$(fmt_var AR)
+" >> "$config"
+
+# if it's a makefile, include the one in srcdir
+[ "$builddir" != "$srcdir" ] && printf "include config.mk\n\ninclude \$(srcdir)/Makefile" >> "$builddir/Makefile"
